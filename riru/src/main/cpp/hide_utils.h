@@ -6,7 +6,7 @@
 
 namespace hide {
 
-    void PrepareMapsHideLibrary();
+    // void PrepareMapsHideLibrary();
 
     void HideFromMaps();
 
