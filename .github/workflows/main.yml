@@ -3,7 +3,7 @@ name: Core
 on:
   push:
     branches:
-      - master
+      - lsplt
     paths-ignore:
       - '**/README.md'
   workflow_dispatch:
@@ -68,8 +68,8 @@ jobs:
         if: success()
         id: prepareArtifact
         run: |
-          releaseName=`ls out/riru-*-release.zip | awk -F '(/|.zip)' '{print $2}'` && echo "::set-output name=releaseName::$releaseName"
-          debugName=`ls out/riru-*-debug.zip | awk -F '(/|.zip)' '{print $2}'` && echo "::set-output name=debugName::$debugName"
+          releaseName=`ls out/riru-*-release.zip | awk -F '(/|.zip)' '{print $2}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
+          debugName=`ls out/riru-*-debug.zip | awk -F '(/|.zip)' '{print $2}'` && echo "debugName=$debugName" >> $GITHUB_OUTPUT
           unzip out/riru-*-release.zip -d riru-release
           unzip out/riru-*-debug.zip -d riru-debug
       - name: Upload release

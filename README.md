@@ -1,4 +1,4 @@
-# Deprecated
+# Deprecated?
 
 All Riru users and Riru modules should migrate to Zygisk.
 
@@ -6,26 +6,19 @@ All Riru users and Riru modules should migrate to Zygisk.
 
 Riru only does one thing, inject into zygote in order to allow modules to run their codes in apps or the system server.
 
-> The name, Riru, comes from a character. (https://www.pixiv.net/member_illust.php?mode=medium&illust_id=74128856)
+> The name, Riru, comes from a character. (https://www.pixiv.net/member_illust.php?illust_id=74128856)
 
 ## Requirements
 
-Android 6.0+ devices rooted with [Magisk](https://github.com/topjohnwu/Magisk)
+Android 6.0+ devices rooted with [Magisk](https://github.com/HuskyDG/magisk-files/tree/main)
 
 ## Guide
 
 ### Install
 
-* From Magisk Manager
-
-  1. Search "Riru" in Magisk Manager
-  2. Install the module named "Riru"
-
   > The Magisk version requirement is enforced by Magisk Manager. You can check [Magisk's module installer script](https://github.com/topjohnwu/Magisk/blob/master/scripts/module_installer.sh).
 
-* Manually
-
-  1. Download the zip from the [GitHub release](https://github.com/RikkaApps/Riru/releases)
+  1. Download the zip from the [GitHub release](https://github.com/Citrinae-Lime/Riru/releases)
   2. Install in Magisk Manager (Modules - Install from storage - Select downloaded zip)
 
 ### Common problems
@@ -44,9 +37,7 @@ Android 6.0+ devices rooted with [Magisk](https://github.com/topjohnwu/Magisk)
 
 * How to inject into the zygote process?
 
-  Before v22.0, we use the method of replacing a system library (libmemtrack) that will be loaded by zygote. However, it seems to cause some weird problems. Maybe because libmemtrack is used by something else.
-
-  Then we found a super easy way, the "native bridge" (`ro.dalvik.vm.native.bridge`). The specific "so" file will be automatically "dlopen-ed" and "dlclose-ed" by the system. This way is from [here](https://github.com/canyie/NbInjection).
+  We found a super easy way, the "native bridge" (`ro.dalvik.vm.native.bridge`). The specific "so" file will be automatically "dlopen-ed" and "dlclose-ed" by the system. This way is from [here](https://github.com/canyie/NbInjection).
 
 * How to know if we are in an app process or a system server process?
 
@@ -54,10 +45,6 @@ Android 6.0+ devices rooted with [Magisk](https://github.com/topjohnwu/Magisk)
   So we need to replace these functions with ours. This part is simple, hook `jniRegisterNativeMethods` since all Java native methods in `libandroid_runtime.so` is registered through this function.
   Then we can call the original `jniRegisterNativeMethods` again to replace them.
   
-## How does Hide works?
-
-From v22.0, Riru provides a hidden mechanism (idea from [Haruue Icymoon](https://github.com/haruue)), make the memory of Riru and module to anonymous memory to hide from "`/proc/maps` string scanning".
-
 ## Build
 
 Gradle tasks:
