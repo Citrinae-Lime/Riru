@@ -7,23 +7,25 @@ on:
     paths-ignore:
       - '**/README.md'
   workflow_dispatch:
+
 jobs:
   build:
-    runs-on: ubuntu-20.04
-    if: ${{ !startsWith(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: 0
-      - name: set up JDK 11
-        uses: actions/setup-java@v1
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
         with:
-          java-version: 11
+          distribution: 'temurin'
+          java-version: 17
+          cache: 'gradle'
       - name: Cache Gradle Dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches
@@ -33,7 +35,7 @@ jobs:
           restore-keys: |
             gradle-deps
       - name: Cache Gradle Build
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches/build-cache-*
@@ -41,7 +43,7 @@ jobs:
           restore-keys: |
             gradle-builds
       - name: Cache Ccache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/.ccache
           key: ccache-cache-${{ github.sha }}
@@ -66,23 +68,23 @@ jobs:
         if: success()
         id: prepareArtifact
         run: |
-          releaseName=`ls out/riru-*-release.zip | awk -F '(/|.zip)' '{print $2}'` && echo "::set-output name=releaseName::$releaseName"
-          debugName=`ls out/riru-*-debug.zip | awk -F '(/|.zip)' '{print $2}'` && echo "::set-output name=debugName::$debugName"
+          releaseName=`ls out/riru-*-release.zip | awk -F '(/|.zip)' '{print $2}'` && echo "releaseName=$releaseName" >> $GITHUB_OUTPUT
+          debugName=`ls out/riru-*-debug.zip | awk -F '(/|.zip)' '{print $2}'` && echo "debugName=$debugName" >> $GITHUB_OUTPUT
           unzip out/riru-*-release.zip -d riru-release
           unzip out/riru-*-debug.zip -d riru-debug
       - name: Upload release
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.prepareArtifact.outputs.releaseName }}
           path: './riru-release/*'
       - name: Upload debug
-        #      if: ${{ github.event_name == 'pull_request' && success() }}
-        uses: actions/upload-artifact@v2
+        if: ${{ github.event_name == 'pull_request' && success() }}
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.prepareArtifact.outputs.debugName }}
           path: './riru-debug/*'
       - name: Upload mappings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: mappings
           path: "riru/build/outputs/mapping/release"
