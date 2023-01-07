@@ -10,7 +10,7 @@ Riru only does one thing, inject into zygote in order to allow modules to run th
 
 ## Requirements
 
-Android 6.0+ devices rooted with [Magisk](https://github.com/LSPosed/Magisk)
+Android 6.0+ devices rooted with [Magisk](https://github.com/HuskyDG/magisk-files/tree/main)
 
 ## Guide
 

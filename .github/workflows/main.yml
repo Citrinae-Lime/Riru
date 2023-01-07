@@ -3,7 +3,7 @@ name: Core
 on:
   push:
     branches:
-      - master
+      - LSPlt
     paths-ignore:
       - '**/README.md'
   workflow_dispatch:
