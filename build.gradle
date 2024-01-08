@@ -40,6 +40,7 @@ ext {
 
     versionNameMinor = 1
     versionNamePatch = 7
+    versionNameSuffix = "ptrace"
 
     outDir = file("$rootDir/out")
 }

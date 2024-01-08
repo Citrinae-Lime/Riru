@@ -7,7 +7,7 @@ plugins {
     id 'com.android.application'
 }
 
-def versionNameShort = "v${riruApiVersion}.${versionNameMinor}.${versionNamePatch}"
+def versionNameShort = "v${riruApiVersion}.${versionNameMinor}.${versionNamePatch}-${versionNameSuffix}"
 def versionName = "${versionNameShort}.r${gitCommitCount}.${gitCommitId}"
 def versionCode = gitCommitCount
 
