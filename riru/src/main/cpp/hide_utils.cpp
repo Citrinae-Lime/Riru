@@ -218,7 +218,7 @@ namespace hide {
     }
 
     void HideFromSoList() {
-        auto self_path = magisk::GetPathForSelfLib("libriru.so");
+        auto self_path = magisk::GetPathForSelfLib("riru");
         std::set<std::string_view> names_to_remove{};
         if (Entry::IsSelfUnloadAllowed()) {
             LOGD("don't hide self since it will be unloaded");
@@ -248,7 +248,7 @@ namespace hide {
 
     void PrepareMapsHideLibrary() {
         /*
-        auto hide_lib_path = magisk::GetPathForSelfLib("libriruhide.so");
+        auto hide_lib_path = magisk::GetPathForSelfLib("riruhide");
         // load riruhide.so and run the hide
         LOGD("dlopen libriruhide");
         riru_hide_handle = DlopenExt(hide_lib_path.c_str(), 0);

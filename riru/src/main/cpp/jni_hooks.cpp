@@ -2,14 +2,17 @@
 #include <unistd.h>
 #include <mntent.h>
 #include <android_prop.h>
-#include <xhook.h>
 #include <dlfcn.h>
 #include <elf_util.h>
+#include <lsplt.hpp>
 
 #include "jni_hooks.h"
 #include "logging.h"
 #include "module.h"
 #include "entry.h"
+
+ino_t android_runtime_dev = 0;
+ino_t android_runtime_inode = 0;
 
 namespace jni::zygote {
     const char *classname = "com/android/internal/os/Zygote";
@@ -142,8 +145,14 @@ handleRegisterNative(const char *className, const JNINativeMethod *methods, int 
     }
 }
 
-#define XHOOK_REGISTER(PATH_REGEX, NAME) \
-    if (xhook_register(PATH_REGEX, #NAME, (void*) new_##NAME, (void **) &old_##NAME) != 0) \
+static bool hook_register(dev_t dev, ino_t inode, const char *symbol, void *new_func, void **old_func) {
+    if (!lsplt::RegisterHook(dev, inode, symbol, new_func, old_func))
+        return false;
+    return true;
+}
+
+#define XHOOK_REGISTER(DEV, PATH_REGEX, NAME) \
+    if (hook_register(DEV, PATH_REGEX, #NAME, (void*) new_##NAME, (void **) &old_##NAME) != 0) \
         LOGE("failed to register hook " #NAME "."); \
 
 #define NEW_FUNC_DEF(ret, func, ...) \
@@ -162,6 +171,43 @@ NEW_FUNC_DEF(int, jniRegisterNativeMethods, JNIEnv *env, const char *className,
         NativeMethod::jniRegisterNativeMethodsPost(env, className, methods, numMethods);
     }*/
     return res;
+}
+
+static int
+new_RegisterNative(JNIEnv *env, jclass cls, const JNINativeMethod *methods, jint numMethods);
+
+NEW_FUNC_DEF(void, androidSetCreateThreadFunc, void *func) {
+    LOGD("androidSetCreateThreadFunc");
+    {
+        SandHook::ElfImg art("libart.so");
+
+        auto *GetJniNativeInterface = art.getSymbAddress<GetJniNativeInterface_t *>(
+                "_ZN3art21GetJniNativeInterfaceEv");
+        setTableOverride = art.getSymbAddress<SetTableOverride_t *>(
+                "_ZN3art9JNIEnvExt16SetTableOverrideEPK18JNINativeInterface");
+
+        if (setTableOverride != nullptr && GetJniNativeInterface != nullptr) {
+            auto functions = GetJniNativeInterface();
+            auto new_JNINativeInterface = new JNINativeInterface();
+            memcpy(new_JNINativeInterface, functions, sizeof(JNINativeInterface));
+            old_RegisterNatives = functions->RegisterNatives;
+            new_JNINativeInterface->RegisterNatives = new_RegisterNative;
+
+            setTableOverride(new_JNINativeInterface);
+            LOGI("override table installed");
+        } else {
+            if (GetJniNativeInterface == nullptr) LOGE("cannot find GetJniNativeInterface");
+            if (setTableOverride == nullptr) LOGE("cannot find setTableOverride");
+        }
+
+        auto *handle = dlopen("libnativehelper.so", 0);
+        if (handle) {
+            old_jniRegisterNativeMethods = reinterpret_cast<jniRegisterNativeMethods_t *>(dlsym(
+                    handle,
+                    "jniRegisterNativeMethods"));
+        }
+    }
+    old_androidSetCreateThreadFunc(func);
 }
 
 static jclass zygoteClass;
@@ -208,13 +254,14 @@ new_RegisterNative(JNIEnv *env, jclass cls, const JNINativeMethod *methods, jint
 void jni::RestoreHooks(JNIEnv *env) {
     if (useTableOverride) {
         setTableOverride(nullptr);
+        hook_register(android_runtime_dev, android_runtime_inode, "androidSetCreateThreadFunc",
+                       (void *) old_androidSetCreateThreadFunc,
+                       nullptr);
     } else {
-        xhook_register(".*\\libandroid_runtime.so$", "jniRegisterNativeMethods",
+        hook_register(android_runtime_dev, android_runtime_inode, "jniRegisterNativeMethods",
                        (void *) old_jniRegisterNativeMethods,
                        nullptr);
-        if (xhook_refresh(0) == 0) {
-            xhook_clear();
-        }
+        lsplt::CommitHook();
     }
 
     RestoreJNIMethod(zygote, nativeForkAndSpecialize)
@@ -225,10 +272,18 @@ void jni::RestoreHooks(JNIEnv *env) {
 }
 
 void jni::InstallHooks() {
-    XHOOK_REGISTER(".*\\libandroid_runtime.so$", jniRegisterNativeMethods)
 
-    if (xhook_refresh(0) == 0) {
-        xhook_clear();
+    for (auto &map : lsplt::MapInfo::Scan()) {
+        if (map.path.ends_with("libandroid_runtime.so")) {
+            android_runtime_dev = map.dev;
+            android_runtime_inode = map.inode;
+            break;
+        }
+    }
+
+    XHOOK_REGISTER(android_runtime_dev, android_runtime_inode, jniRegisterNativeMethods)
+
+    if (lsplt::CommitHook()) {
         LOGI("hook installed");
     } else {
         LOGE("failed to refresh hook");
@@ -236,36 +291,14 @@ void jni::InstallHooks() {
 
     useTableOverride = old_jniRegisterNativeMethods == nullptr;
 
-    if (useTableOverride) {
-        LOGI("no jniRegisterNativeMethods");
+    if (!useTableOverride) return;
 
-        SandHook::ElfImg art("libart.so");
+    XHOOK_REGISTER(android_runtime_dev, android_runtime_inode, androidSetCreateThreadFunc)
 
-        auto *GetJniNativeInterface = art.getSymbAddress<GetJniNativeInterface_t *>(
-                "_ZN3art21GetJniNativeInterfaceEv");
-        setTableOverride = art.getSymbAddress<SetTableOverride_t *>(
-                "_ZN3art9JNIEnvExt16SetTableOverrideEPK18JNINativeInterface");
-
-        if (setTableOverride != nullptr && GetJniNativeInterface != nullptr) {
-            auto functions = GetJniNativeInterface();
-            auto new_JNINativeInterface = new JNINativeInterface();
-            memcpy(new_JNINativeInterface, functions, sizeof(JNINativeInterface));
-            old_RegisterNatives = functions->RegisterNatives;
-            new_JNINativeInterface->RegisterNatives = new_RegisterNative;
-
-            setTableOverride(new_JNINativeInterface);
-            LOGI("override table installed");
-        } else {
-            if (GetJniNativeInterface == nullptr) LOGE("cannot find GetJniNativeInterface");
-            if (setTableOverride == nullptr) LOGE("cannot find setTableOverride");
-        }
-
-        auto *handle = dlopen("libnativehelper.so", 0);
-        if (handle) {
-            old_jniRegisterNativeMethods = reinterpret_cast<jniRegisterNativeMethods_t *>(dlsym(
-                    handle,
-                    "jniRegisterNativeMethods"));
-        }
+    if (lsplt::CommitHook()) {
+        LOGI("hook installed");
+    } else {
+        LOGE("failed to refresh hook");
     }
 }
 
